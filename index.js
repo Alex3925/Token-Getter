@@ -87,7 +87,7 @@ async function create(retryCount = 3) {
             }
         } catch (err) {
             errorLog(`Attempt ${attempt}: Error creating account:`, err.message);
-            if (attempt === retryCount)*.
+            if (attempt === retryCount) {
                 return { success: false, message: err.message || "Failed to create account." };
             }
             await delay(5000);

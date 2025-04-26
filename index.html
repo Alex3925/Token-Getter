@@ -163,7 +163,7 @@
                     logMessage(`Error in auto-create (attempt ${attempts}): ${err.message}`, 'error');
                 }
                 if (isAutoCreating && attempts < accountCount) {
-                    await new Promise(resolve => setTimeout(resolve, 10000)); // 10-second delay
+                    await new Promise(resolve => setTimeout(resolve, 15000)); // 15-second delay
                     createLoop();
                 }
             }

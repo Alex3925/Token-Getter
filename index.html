@@ -17,13 +17,25 @@
         <!-- Control Panel -->
         <section class="bg-white p-6 rounded-lg shadow-md mb-6">
             <h2 class="text-xl font-semibold mb-4">Control Panel</h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <!-- Create Account Button -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <!-- Create Single Account Button -->
                 <div>
                     <button id="createBtn" class="w-full bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 transition" onclick="createAccount()">
-                        Create Account
+                        Create Single Account
                     </button>
                     <p id="createStatus" class="mt-2 text-sm text-gray-600"></p>
+                </div>
+                <!-- Auto-Create Account Section -->
+                <div>
+                    <label for="accountCount" class="block text-sm font-medium text-gray-700">Number of Accounts (1-100)</label>
+                    <input id="accountCount" type="number" min="1" max="100" class="mt-1 w-full border rounded p-2" placeholder="e.g., 10">
+                    <button id="autoCreateBtn" class="w-full bg-purple-500 text-white py-2 px-4 rounded mt-2 hover:bg-purple-600 transition" onclick="startAutoCreate()">
+                        Start Auto-Create
+                    </button>
+                    <button id="stopAutoCreateBtn" class="w-full bg-red-500 text-white py-2 px-4 rounded mt-2 hover:bg-red-600 transition hidden" onclick="stopAutoCreate()">
+                        Stop Auto-Create
+                    </button>
+                    <p id="autoCreateStatus" class="mt-2 text-sm text-gray-600"></p>
                 </div>
                 <!-- SMS OTP Form -->
                 <div>
@@ -60,6 +72,8 @@
     </main>
 
     <script>
+        let isAutoCreating = false;
+
         // Log messages to the UI
         function logMessage(message, type = 'info') {
             const logDiv = document.getElementById('logs');
@@ -87,7 +101,7 @@
             }
         }
 
-        // Create account
+        // Create single account
         async function createAccount() {
             const btn = document.getElementById('createBtn');
             const status = document.getElementById('createStatus');
@@ -99,7 +113,7 @@
                 if (result.success) {
                     logMessage(`Account created: ${result.username}`);
                     status.textContent = 'Account created successfully!';
-                    loadTokens(); // Refresh token list
+                    loadTokens();
                 } else {
                     throw new Error(result.message);
                 }
@@ -109,6 +123,64 @@
             } finally {
                 btn.disabled = false;
             }
+        }
+
+        // Start automatic account creation
+        async function startAutoCreate() {
+            if (isAutoCreating) return;
+            const accountCount = parseInt(document.getElementById('accountCount').value);
+            if (isNaN(accountCount) || accountCount < 1 || accountCount > 100) {
+                logMessage('Invalid number of accounts. Enter a number between 1 and 100.', 'error');
+                document.getElementById('autoCreateStatus').textContent = 'Invalid input.';
+                return;
+            }
+            isAutoCreating = true;
+            const startBtn = document.getElementById('autoCreateBtn');
+            const stopBtn = document.getElementById('stopAutoCreateBtn');
+            const status = document.getElementById('autoCreateStatus');
+            startBtn.classList.add('hidden');
+            stopBtn.classList.remove('hidden');
+            status.textContent = 'Auto-creating accounts...';
+            let attempts = 0;
+
+            async function createLoop() {
+                if (!isAutoCreating || attempts >= accountCount) {
+                    stopAutoCreate();
+                    return;
+                }
+                attempts++;
+                status.textContent = `Creating account ${attempts} of ${accountCount}...`;
+                try {
+                    const response = await fetch('/create', { method: 'POST' });
+                    const result = await response.json();
+                    if (result.success) {
+                        logMessage(`Account ${attempts} created: ${result.username}`);
+                        loadTokens();
+                    } else {
+                        throw new Error(result.message);
+                    }
+                } catch (err) {
+                    logMessage(`Error in auto-create (attempt ${attempts}): ${err.message}`, 'error');
+                }
+                if (isAutoCreating && attempts < accountCount) {
+                    await new Promise(resolve => setTimeout(resolve, 10000)); // 10-second delay
+                    createLoop();
+                }
+            }
+
+            createLoop();
+        }
+
+        // Stop automatic account creation
+        function stopAutoCreate() {
+            isAutoCreating = false;
+            const startBtn = document.getElementById('autoCreateBtn');
+            const stopBtn = document.getElementById('stopAutoCreateBtn');
+            const status = document.getElementById('autoCreateStatus');
+            startBtn.classList.remove('hidden');
+            stopBtn.classList.add('hidden');
+            status.textContent = 'Auto-create stopped.';
+            logMessage('Automatic account creation stopped.');
         }
 
         // Send SMS OTP

